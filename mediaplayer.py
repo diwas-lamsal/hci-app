@@ -131,7 +131,7 @@ class Window(QWidget):
     def create_right_panel(self):
         vboxRight = QVBoxLayout()
         self.right_frame = QFrame()
-        self.right_frame.setFixedWidth(300)
+        self.right_frame.setFixedWidth(350)
         self.right_frame.setStyleSheet("background-color: white;")
         vboxRight.addWidget(self.right_frame)
         vboxRight.setContentsMargins(0, 0, 0, 0)
@@ -146,7 +146,7 @@ class Window(QWidget):
             self.toggleRightButton.setIcon(
                 QIcon("icons/hide.png"))  # https://www.flaticon.com/premium-icon/off-button_5683501
         else:
-            self.right_frame.setFixedWidth(300)
+            self.right_frame.setFixedWidth(350)
             self.vboxRight.addWidget(self.right_frame)
             self.hboxUp.addLayout(self.vboxRight)
             self.vboxRight_visible = True
