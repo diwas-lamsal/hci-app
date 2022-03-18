@@ -1,4 +1,5 @@
-
+# GLOBAL:
+COMMAND_LIST = ['forward','backward','volume up','volume down','up','down','pause','play']
 
 def get_time_to_display(duration):
 

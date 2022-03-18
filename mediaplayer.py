@@ -1,13 +1,15 @@
-import datetime
-
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5 import QtGui
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QUrl
+import cv2
+import numpy as np
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QSlider, QLabel, \
     QFileDialog, QAction, QShortcut, QFrame
 from PyQt5.QtGui import QIcon, QPalette, QColor, QKeySequence
-import sys
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 
+from ThreadMaker import CameraThread, VoiceThread
 from mslider import MSlider
 from util import *
 
@@ -23,6 +25,7 @@ class Window(QWidget):
         self.setWindowIcon(QIcon("icons/player.png"))  # https://www.flaticon.com/premium-icon/youtube_2504965
 
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.video_selected = False
 
         videoWidget = QVideoWidget()
         videoWidget.setStyleSheet("background:black;")
@@ -107,6 +110,7 @@ class Window(QWidget):
         # Right panel for camera and feedback
         self.vboxRight = self.create_right_panel()
         self.vboxRight_visible = True
+        self.right_widget_list = self.get_right_frame_widgets()
 
         self.hboxUp = QHBoxLayout()
         self.hboxUp.addWidget(videoWidget)
@@ -128,29 +132,135 @@ class Window(QWidget):
         self.mediaPlayer.positionChanged.connect(self.position_changed)
         self.mediaPlayer.durationChanged.connect(self.duration_changed)
 
+        # Camera
+        self.camera_on = True
+        self.voice_on = False
+
     def create_right_panel(self):
         vboxRight = QVBoxLayout()
-        self.right_frame = QFrame()
-        self.right_frame.setFixedWidth(350)
-        self.right_frame.setStyleSheet("background-color: white;")
-        vboxRight.addWidget(self.right_frame)
-        vboxRight.setContentsMargins(0, 0, 0, 0)
+
+        self.display_width = 350
+        self.display_height = 350
+        # # Webcam
+        # create the video capture thread
+        self.imageDisplayLabel = QLabel(self)
+        self.imageDisplayLabel.setStyleSheet("background:white")
+        self.imageDisplayLabel.resize(self.display_width, self.display_height)
+
+        self.videoThread = CameraThread()
+        # connect its signal to the update_image slot
+        self.videoThread.change_pixmap_signal.connect(self.update_image)
+        # start the thread
+        self.videoThread.start()
+        vboxRight.addWidget(self.imageDisplayLabel)
+
+        self.toggleCameraButton = QPushButton("Toggle Camera")
+        self.toggleCameraButton.clicked.connect(self.toggle_camera)
+        vboxRight.addWidget(self.toggleCameraButton)
+
+        self.voiceInfoLabel = QLabel("Voice Input is Off")
+        self.voiceInfoLabel.setStyleSheet("background:white; text-align:center")
+        self.voiceInfoLabel.setAlignment(Qt.AlignCenter)
+        vboxRight.addWidget(self.voiceInfoLabel)
+
+        self.toggleVoiceButton = QPushButton("Toggle Voice")
+        self.toggleVoiceButton.clicked.connect(self.toggle_voice)
+        vboxRight.addWidget(self.toggleVoiceButton)
+
+        self.voiceStatusLabel = QLabel()
+        self.voiceStatusLabel.setWordWrap(True)
+        self.voiceStatusLabel.setStyleSheet("background:white; text-align:center")
+        self.voiceStatusLabel.setAlignment(Qt.AlignCenter)
+        vboxRight.addWidget(self.voiceStatusLabel)
+
+        self.voiceDetectionLabel = QLabel()
+        self.voiceDetectionLabel.setWordWrap(True)
+        self.voiceDetectionLabel.setStyleSheet("background:white; text-align:center")
+        self.voiceDetectionLabel.setAlignment(Qt.AlignCenter)
+        vboxRight.addWidget(self.voiceDetectionLabel)
+
+        # self.voiceThread.start()
+
+        self.rightFrame = QFrame()
+        self.rightFrame.setFixedWidth(350)
+        self.rightFrame.setStyleSheet("background-color: white;")
+        vboxRight.addWidget(self.rightFrame)
+        vboxRight.setContentsMargins(0, 0, 10, 0)
+        vboxRight.setSpacing(5)
+        vboxRight.setStretch(2, 0)
+
         return vboxRight
+
+    def get_right_frame_widgets(self):
+        widget_list = []
+        for i in (range(self.vboxRight.count())):
+            widget = self.vboxRight.itemAt(i).widget()
+            widget_list.append(widget)
+        return widget_list
 
     def toggle_right_panel(self):
         if self.vboxRight_visible:
-            self.right_frame.setFixedWidth(0)
-            self.vboxRight.removeWidget(self.right_frame)
+            for i in reversed(range(self.vboxRight.count())):
+                widgetToRemove = self.vboxRight.itemAt(i).widget()
+                self.vboxRight.removeWidget(widgetToRemove)
+                widgetToRemove.setParent(None)
+
             self.hboxUp.removeItem(self.vboxRight)
             self.vboxRight_visible = False
             self.toggleRightButton.setIcon(
                 QIcon("icons/hide.png"))  # https://www.flaticon.com/premium-icon/off-button_5683501
         else:
-            self.right_frame.setFixedWidth(350)
-            self.vboxRight.addWidget(self.right_frame)
+            if self.camera_on:
+                self.vboxRight.addWidget(self.imageDisplayLabel)
+            else:
+                self.vboxRight.addWidget(self.image_black_label)
+            right_widget_list = self.right_widget_list[1:]  # Remove the first label (already added)
+            for i in right_widget_list:
+                self.vboxRight.addWidget(i)
             self.hboxUp.addLayout(self.vboxRight)
             self.vboxRight_visible = True
             self.toggleRightButton.setIcon(QIcon("icons/show.png"))
+
+    def toggle_camera(self):
+        if self.camera_on:
+            # Black background only displayed when camera is off
+            self.image_black_label = QLabel()
+            self.image_black_label.resize(self.display_width, self.display_height)
+            self.image_black_label.setStyleSheet("background:white")
+
+            # Stop the camera and remove the label that displays the camera
+            self.videoThread.stop()
+            black_map = QtGui.QPixmap(self.display_width, self.display_height - 90)
+            self.vboxRight.removeWidget(self.imageDisplayLabel)
+            self.imageDisplayLabel.setParent(None)
+            self.vboxRight.insertWidget(0, self.image_black_label)
+            self.image_black_label.setPixmap(black_map)
+            self.camera_on = False
+        else:
+            self.vboxRight.removeWidget(self.image_black_label)
+            self.image_black_label = None
+            self.imageDisplayLabel.setParent(self.image_black_label)
+            self.vboxRight.insertWidget(0, self.imageDisplayLabel)
+            self.videoThread = CameraThread()
+            self.videoThread.change_pixmap_signal.connect(self.update_image)
+            self.videoThread.start()
+            self.camera_on = True
+
+    def toggle_voice(self):
+        if self.voice_on:
+            self.voiceInfoLabel.setText("Voice input is off")
+            self.voice_on = False
+            self.voiceThread.stop()
+            del self.voiceThread
+            self.voiceStatusLabel.setText("")
+            self.voiceDetectionLabel.setText("")
+        else:
+            self.voiceInfoLabel.setText("Voice input is on")
+            self.voice_on = True
+            self.voiceThread = VoiceThread()
+            self.voiceThread.change_audio_signal.connect(self.detect_audio)
+            self.voiceThread.change_receive_signal.connect(self.detect_signal)
+            self.voiceThread.start()
 
     def open_file(self):
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Video")
@@ -164,6 +274,8 @@ class Window(QWidget):
             self.shortcut_forward.setEnabled(True)
             self.shortcut_backward.setEnabled(True)
             self.shortcut_play.setEnabled(True)
+
+            self.video_selected = True
 
     def play_video(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -202,9 +314,56 @@ class Window(QWidget):
     def vol_down(self):
         self.volumeSlider.setValue(max(self.volumeSlider.value() - 10, 0))
 
+    # Video showing thread from tutorial at https://gist.github.com/docPhil99/ca4da12c9d6f29b9cea137b617c7b8b1
 
-app = QApplication(sys.argv)
+    def closeEvent(self, event):
+        self.videoThread.stop()
+        event.accept()
 
-window = Window()
-window.show()
-sys.exit(app.exec())
+    @pyqtSlot(np.ndarray)
+    def update_image(self, cv_img):
+        """Updates the image_label with a new opencv image"""
+        qt_img = self.convert_cv_qt(cv_img)
+        self.imageDisplayLabel.setPixmap(qt_img)
+
+    def convert_cv_qt(self, cv_img):
+        """Convert from an opencv image to QPixmap"""
+        rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_Qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)
+        p = convert_to_Qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
+        return QPixmap.fromImage(p)
+
+    def detect_audio(self, value):
+        """ Get audio from thread """
+        # print(value)
+        if not self.voice_on:
+            return
+        if value == "":
+            self.voiceDetectionLabel.setText("Sorry, couldn't quite catch that")
+        else:
+            if self.video_selected:
+                self.voiceDetectionLabel.setText(f"Detected \"{value}\"")
+                if value in COMMAND_LIST:
+                    if value == "forward":
+                        self.forward()
+                    elif value =="backward":
+                        self.backward()
+                    elif value == "up" or value == "volume up":
+                        self.vol_up()
+                    elif value == "down" or value == "volume down":
+                        self.vol_down()
+                    elif value == "pause":
+                        self.mediaPlayer.pause()
+                    elif value == "play" or value == "resume":
+                        self.mediaPlayer.play()
+            else:
+                self.voiceDetectionLabel.setText(f"Detected \"{value}\", Please select a video \
+                for using voice commands")
+
+    def detect_signal(self, message):
+        """ Get audio from thread """
+        if not self.voice_on:
+            return
+        self.voiceStatusLabel.setText(message)
