@@ -1,5 +1,6 @@
 # GLOBAL:
 COMMAND_LIST = ['forward','backward','volume up','volume down','up','down','pause','play']
+COMMAND_LIST_PDF = ['zoom in','in','zoom out','out','scroll up','scroll down','up','down','continue','next','previous']
 
 def get_time_to_display(duration):
 

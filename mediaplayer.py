@@ -110,7 +110,7 @@ class Window(QWidget):
         # Right panel for camera and feedback
         self.vboxRight = self.create_right_panel()
         self.vboxRight_visible = True
-        self.right_widget_list = self.get_right_frame_widgets()
+        self.right_widget_list = self.get_right_panel_widgets()
 
         self.hboxUp = QHBoxLayout()
         self.hboxUp.addWidget(videoWidget)
@@ -191,7 +191,7 @@ class Window(QWidget):
 
         return vboxRight
 
-    def get_right_frame_widgets(self):
+    def get_right_panel_widgets(self):
         widget_list = []
         for i in (range(self.vboxRight.count())):
             widget = self.vboxRight.itemAt(i).widget()
