@@ -9,10 +9,10 @@ from PyQt5.QtGui import QIcon, QPalette, QColor, QKeySequence
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 
+import config
 from ThreadMaker import CameraThread, VoiceThread
 from mslider import MSlider
 from util import *
-
 
 class Window(QWidget):
     def __init__(self):
@@ -158,6 +158,15 @@ class Window(QWidget):
         self.toggleCameraButton.clicked.connect(self.toggle_camera)
         vboxRight.addWidget(self.toggleCameraButton)
 
+        self.gestureInputMode = QLabel(f"Gesture mode: {config.get_gesture_mode()}")
+        self.gestureInputMode.setStyleSheet("background:white; text-align:center")
+        self.gestureInputMode.setAlignment(Qt.AlignCenter)
+        vboxRight.addWidget(self.gestureInputMode)
+
+        self.toggleInputModeButton = QPushButton("Toggle Tracking Mode")
+        self.toggleInputModeButton.clicked.connect(self.toggle_input_mode)
+        vboxRight.addWidget(self.toggleInputModeButton)
+
         self.voiceInfoLabel = QLabel("Voice Input is Off")
         self.voiceInfoLabel.setStyleSheet("background:white; text-align:center")
         self.voiceInfoLabel.setAlignment(Qt.AlignCenter)
@@ -246,6 +255,15 @@ class Window(QWidget):
             self.videoThread.start()
             self.camera_on = True
 
+    def toggle_input_mode(self):
+        gm = config.get_gesture_mode()
+        if gm == 'head':
+            config.set_gesture_mode('face')
+        else:
+            config.set_gesture_mode('head')
+
+        self.gestureInputMode.setText(f"Gesture mode: {gm}")
+
     def toggle_voice(self):
         if self.voice_on:
             self.voiceInfoLabel.setText("Voice input is off")
@@ -302,17 +320,17 @@ class Window(QWidget):
                 self.style().standardIcon(QStyle.SP_MediaPlay)
             )
 
-    def forward(self):
-        self.mediaPlayer.setPosition(min(self.mediaPlayer.position() + 10000, self.maxDuration))
+    def forward(self, acceleration=1):
+        self.mediaPlayer.setPosition(min(self.mediaPlayer.position() + 10000*acceleration, self.maxDuration))
 
-    def backward(self):
-        self.mediaPlayer.setPosition(max(self.mediaPlayer.position() - 10000, 0))
+    def backward(self, acceleration=1):
+        self.mediaPlayer.setPosition(max(self.mediaPlayer.position() - 10000*acceleration, 0))
 
-    def vol_up(self):
-        self.volumeSlider.setValue(min(self.volumeSlider.value() + 10, 100))
+    def vol_up(self, val=10):
+        self.volumeSlider.setValue(min(self.volumeSlider.value() + val, 100))
 
-    def vol_down(self):
-        self.volumeSlider.setValue(max(self.volumeSlider.value() - 10, 0))
+    def vol_down(self, val=10):
+        self.volumeSlider.setValue(max(self.volumeSlider.value() - val, 0))
 
     # Video showing thread from tutorial at https://gist.github.com/docPhil99/ca4da12c9d6f29b9cea137b617c7b8b1
 
@@ -329,6 +347,10 @@ class Window(QWidget):
     def convert_cv_qt(self, cv_img):
         """Convert from an opencv image to QPixmap"""
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        # rgb_image = cv2.flip(rgb_image, 1)
+
+
+
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         convert_to_Qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)

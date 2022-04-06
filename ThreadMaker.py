@@ -7,7 +7,7 @@ import speech_recognition as sr
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5 import QtCore
 
-from util import COMMAND_LIST
+from util import COMMAND_LIST, return_processed_image
 
 
 class CameraThread(QThread):
@@ -24,6 +24,12 @@ class CameraThread(QThread):
             ret, cv_img = cap.read()
             if ret:
                 cv_img = cv2.flip(cv_img, 1)
+
+                try:
+                    cv_img = return_processed_image(cv_img)
+                except:
+                    print("Error while using gestures")
+
                 self.change_pixmap_signal.emit(cv_img)
         # shut down capture system
         cap.release()

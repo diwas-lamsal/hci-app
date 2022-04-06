@@ -3,7 +3,6 @@ import numpy as np
 import pyautogui
 import speech_recognition as sr
 
-
 # https://gist.github.com/docPhil99/ca4da12c9d6f29b9cea137b617c7b8b1
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6 import QtCore
@@ -25,6 +24,9 @@ class CameraThread(QThread):
             ret, cv_img = cap.read()
             if ret:
                 cv_img = cv2.flip(cv_img, 1)
+
+
+                
                 self.change_pixmap_signal.emit(cv_img)
         # shut down capture system
         cap.release()
